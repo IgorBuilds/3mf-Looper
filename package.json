@@ -1,0 +1,31 @@
+{
+  "name": "3mf-gcode-looper",
+  "version": "0.1.0",
+  "description": "CLI to duplicate .gcode inside .3mf archives N times for print farms",
+  "bin": {
+    "3mf-gcode-looper": "bin/cli.js"
+  },
+  "type": "commonjs",
+  "main": "bin/cli.js",
+  "scripts": {
+    "start": "node bin/cli.js"
+  },
+  "keywords": [
+    "3mf",
+    ".gcode",
+    "zip",
+    "print-farm",
+    "cli"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "archiver": "^7.0.1",
+    "prompts": "^2.4.2",
+    "unzipper": "^0.11.4"
+  },
+  "engines": {
+    "node": ">=16"
+  }
+}
+
