@@ -53,14 +53,15 @@ async function streamRepeatFiles(sourcePaths, destPath, times, fileDisplayNames 
   ws.on('error', (e) => { throw e; });
 
   const names = fileDisplayNames.length ? fileDisplayNames.join(', ') : sourcePaths.map((p) => path.basename(p)).join(', ');
-  const header = `; File modified at ${formatDateTime(new Date())} for ${times} loops for files: ${names}`;
+  const header = `; 3mf-looper: File modified at ${formatDateTime(new Date())} for ${times} loops for files: ${names}`;
   await writeString(ws, header + "\n");
 
   for (let i = 1; i <= times; i += 1) {
-    if (i > 1) await writeString(ws, `; Starting loop ${i}\n`);
+    console.log(`Starting loop ${i} for ${names}`);
+    if (i > 1) await writeString(ws, `; 3mf-looper: Starting loop ${i}\n`);
     for (let s = 0; s < sourcePaths.length; s += 1) {
       const displayName = fileDisplayNames[s] || path.basename(sourcePaths[s]);
-      await writeString(ws, `; Starting loop ${i} for "${displayName}"\n`);
+      await writeString(ws, `; 3mf-looper: Starting loop ${i} for "${displayName}"\n`);
       await new Promise((resolve, reject) => {
         const rs = fs.createReadStream(sourcePaths[s]);
         rs.on('error', reject);
