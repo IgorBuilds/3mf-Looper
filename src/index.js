@@ -14,6 +14,7 @@ const CYAN = '\x1b[36m';
 const MAGENTA = '\x1b[35m';
 const DARK_GREEN = '\x1b[32m';
 const BOLD = '\x1b[1m';
+const RED = '\x1b[31m';
 const RESET = '\x1b[0m';
 
 function cyanColor(text) {
@@ -30,6 +31,10 @@ function darkGreenColor(text) {
 
 function bold(text) {
   return `${BOLD}${text}${RESET}`;
+}
+
+function colorRed(text) {
+  return `${BOLD}${RED}${text}${RESET}`;
 }
 
 
@@ -203,18 +208,13 @@ async function runWizard() {
   console.log(`Examples:  ${cyanColor('3mf-looper 33 file1.3mf')} or ${darkGreenColor('3mf-looper 500g file1.3mf file2.3mf')} or ${magentaColor('3mf-looper 2h file1.3mf file2.3mf')}`);
 
   console.log('');
+  console.log(`To ${colorRed('exit')} the wizard, press ${colorRed('Ctrl+C')} at any time.`);
+  console.log('');
   // A 3MF is expected to contain exactly one top-level metadata/*.gcode
   console.log(cyanColor('Starting wizard...'));
   console.log('');
-  const filesRes = await prompts({
-    type: 'text',
-    name: 'paths',
-    message: 'Paste or drop .3mf files (one per line, or quote paths with spaces):',
-    validate: (val) => (String(val).trim().length ? true : 'Please provide at least one file path'),
-  });
-  if (!filesRes || !filesRes.paths) throw new Error('Cancelled');
-  const inputPaths = splitPaths(filesRes.paths);
-  if (inputPaths.length === 0) throw new Error('No valid files.');
+  const { inputPaths, initialLoopSpec } = await collectFilesAndLoopSpec();
+  if (!inputPaths || inputPaths.length === 0) throw new Error('No valid files.');
 
   // 2) discover candidates and enforce single GCODE per input
   const gcodeNameCandidatesPerInput = [];
@@ -260,19 +260,21 @@ async function runWizard() {
     console.log(`Per loop totals: ${perLoopMinutes} min, ${perLoopGrams.toFixed(2)} g`);
 
     // 5) single-field target with preview, allow retry when user says No
-    let loopSpec;
+    let loopSpec = initialLoopSpec;
     let repetitions;
     let durationLabel;
     let totalGrams;
     while (true) {
-      const t = await prompts({
-        type: 'text',
-        name: 'txt',
-        message: 'How would you like to loop?\n- Count: enter an integer (e.g., 4)\n- Time: enter the total time to be used (120m, 2h, or 1d)\n- Filament: enter the total amount of filament to be used (100g or 2.5kg)\n',
-        validate: (v) => (parseLoopSpecifier(v).type !== 'invalid' ? true : 'Enter: integer count (e.g., 5), time (120m/2h/1d), or weight (100g/2.5kg)')
-      });
-      if (!t || !t.txt) throw new Error('Cancelled');
-      loopSpec = parseLoopSpecifier(t.txt);
+      if (!loopSpec) {
+        const t = await prompts({
+          type: 'text',
+          name: 'txt',
+          message: 'How would you like to loop?\n- Count: enter an integer (e.g., 4)\n- Time: enter the total time to be used (120m, 2h, or 1d)\n- Filament: enter the total amount of filament to be used (100g or 2.5kg)\n',
+          validate: (v) => (parseLoopSpecifier(v).type !== 'invalid' ? true : 'Enter: integer count (e.g., 5), time (120m/2h/1d), or weight (100g/2.5kg)')
+        });
+        if (!t || !t.txt) throw new Error('Cancelled');
+        loopSpec = parseLoopSpecifier(t.txt);
+      }
 
       if (loopSpec.type === 'count') repetitions = loopSpec.value;
       else if (loopSpec.type === 'time') repetitions = Math.floor(loopSpec.minutes / (perLoopMinutes || 1));
@@ -307,6 +309,7 @@ async function runWizard() {
       });
       if (review && review.ok) break;
       // else retry the entry
+      loopSpec = null;
     }
 
     // 6) write & zip
@@ -344,7 +347,7 @@ async function runWizard() {
     const countArg = `${repetitions}`; // use count for shortest form
     const filesPart = inputPaths.map((p) => `"${p}"`).join(' ');
     console.log('');
-    console.log(`Hint: If you need to generate this file again, use this command:`);
+    console.log(`💡 Hint: If you need to generate this file again, use this command:`);
     console.log(`${cyanColor(`3mf-looper ${countArg} ${filesPart}`)}`);
 
     // Offer to open containing folder in Finder (macOS)
@@ -428,6 +431,58 @@ function estimateFinalSize(firstZipSize, sizeMaps, selectedNamesPerInput, repeti
   } catch (e) {
     return null;
   }
+}
+
+async function collectFilesAndLoopSpec() {
+  const files = [];
+  let initialLoopSpec = null;
+
+  // First file (required)
+  const first = await prompts({
+    type: 'text',
+    name: 'p',
+    message: `Drop the first ${cyanColor(`.3mf file`)}:`,
+    validate: async (v) => {
+      const raw = String(v || '');
+      const tokens = splitPaths(raw);
+      const abs = tokens[0];
+      if (!abs) return 'Please provide a file path';
+      try { const st = await fsp.stat(abs); return st.isFile() ? true : 'Not a file'; } catch { return 'File not found'; }
+    }
+  });
+  if (!first || !first.p) throw new Error('Cancelled');
+  {
+    const tokens = splitPaths(String(first.p));
+    if (!tokens[0]) throw new Error('No valid files.');
+    files.push(tokens[0]);
+  }
+
+  // Additional files OR inline loop spec (no empty Enter; require a value)
+  while (true) {
+    const next = await prompts({
+      type: 'text',
+      name: 'v',
+      message: `Drop ${cyanColor(`another .3mf`)}, OR type ${magentaColor(`loop value`)} to create the file (e.g., 20 (count), 3h (time), 100g (weight)):`,
+    });
+    if (!next) throw new Error('Cancelled');
+    const raw = String(next.v || '');
+    if (!raw.trim()) { console.log('Please drop a .3mf file or provide a loop value (e.g., 5, 2h, 100g).'); continue; }
+
+    const spec = parseLoopSpecifier(raw);
+    if (spec.type !== 'invalid') { initialLoopSpec = spec; break; }
+
+    const toks = splitPaths(raw);
+    if (toks.length === 0) { console.log('File not found, try again'); continue; }
+    for (const abs of toks) {
+      try { const st = await fsp.stat(abs); if (st.isFile()) files.push(abs); else console.log(`Not a file: ${abs}`); }
+      catch { 
+        console.log(`${colorRed(`File not found: ${abs}`)}`);
+        console.log(`Please drop a ${cyanColor(`second .3mf file`)} OR provide a ${darkGreenColor(`loop value`)} (e.g., 5, 2h, 100g).`);
+     }
+    }
+  }
+
+  return { inputPaths: files, initialLoopSpec };
 }
 
 

@@ -56,8 +56,9 @@ async function streamRepeatFiles(sourcePaths, destPath, times, fileDisplayNames 
   const header = `; 3mf-looper: File modified at ${formatDateTime(new Date())} for ${times} loops for files: ${names}`;
   await writeString(ws, header + "\n");
 
+  console.log(``);
+  console.log(`⏳ Starting file generation`);
   for (let i = 1; i <= times; i += 1) {
-    console.log(`Starting loop ${i} for ${names}`);
     if (i > 1) await writeString(ws, `; 3mf-looper: Starting loop ${i}\n`);
     for (let s = 0; s < sourcePaths.length; s += 1) {
       const displayName = fileDisplayNames[s] || path.basename(sourcePaths[s]);
@@ -75,6 +76,9 @@ async function streamRepeatFiles(sourcePaths, destPath, times, fileDisplayNames 
   await writeString(ws, "\n" + footer + "\n");
   ws.end();
   await once(ws, 'finish');
+  console.log('');
+  console.log(`✅ GCODE file looped!`);
+  console.log(`📦 Compressing back to .3mf, it may take a while for large files...`);
 }
 
 module.exports = {
