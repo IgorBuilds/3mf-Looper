@@ -2,12 +2,19 @@
 
 Open source CLI to loop the `.gcode` content inside a `.3mf` archive N times, useful for running the same print multiple times on a print farm.
 
+## Wizard
+https://github.com/user-attachments/assets/5404b07e-ee54-4496-8782-0f354ac51792
+
+## One line command
+![One Line Example](https://raw.githubusercontent.com/IgorBuilds/3mf-Looper/refs/heads/main/images/OneLineExample.gif)
+
+
 ## Install
 
 If you already have Node.js and npm installed, install the tool globally:
 
 ```bash
-npm install -g 3mf-looper
+npm install -g @igorbuilds/3mf-looper
 ```
 
 If you don’t have Node yet:
