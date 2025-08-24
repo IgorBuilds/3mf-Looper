@@ -1,7 +1,7 @@
 {
   "author": "IgorBuilds",
   "name": "@igorbuilds/3mf-looper",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "CLI to loop .gcode content inside .3mf archives N times for print farms",
   "main": "bin/cli.js",
   "bin": {
